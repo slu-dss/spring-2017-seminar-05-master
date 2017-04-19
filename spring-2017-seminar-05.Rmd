@@ -1,0 +1,204 @@
+---
+title: "Spring 2017, Seminar 05"
+author: "Chis Prener & Christy Garcia"
+date: "19 Apr 2017"
+output: html_notebook
+---
+
+### Data
+Today, we'll use the same two data sources we used in the last session. The examples we'll discuss come from [fivethirtyeight.com](https://fivethirtyeight.com). The [data](https://github.com/fivethirtyeight/data) was originally used for [this article](https://fivethirtyeight.com/datalab/do-pulitzers-help-newspapers-keep-readers/) that investigated whether [Pulitzer Prizes](http://www.pulitzer.org) helped newspapers keep readers.
+
+```{r}
+prize <- read.csv("pulitzer-circulation-data.csv", stringsAsFactors = FALSE)
+```
+
+Pay close attention to the structure of the code above. We've assigned the data in the `csv` file to an object named `prize`. We use the `read.csv()` function to do this. You *must* place the filename in quotes
+
+Now, practice writing this code on the other dataset in the seminar's directory: `auto2016.csv`. These data come from the [U.S. Department of Energy](https://www.fueleconomy.gov/feg/download.shtml) and have been extensively cleaned by Chris. Name your dataframe `auto`:
+
+```{r}
+
+```
+
+### Dependencies
+
+We'll need a number of packages for today's seminar: `dplyr`, `broom`, `lme4` and `lmerTest`. First use the `install.packages()` function to install these. You will need the console open while installing because there is one prompt you need to answer yes `y` to in order to continue. Once you have them installed, open them using the `library()` function. 
+
+```{r}
+install.packages("dplyr")
+install.packages("broom")
+install.packages("lme4")
+install.packages("lmerTest")
+
+library(dplyr)
+library(broom)
+library(lme4)
+library(lmerTest)
+```
+
+### Renaming Variables
+
+One thing you will hopefully notice quickly is that the variable names are much tidier in the `auto2016.csv` data than they are in the Pulitzer Prize data. We can use the `dplyr` package's `rename()` function to rename those variables. Unlike our previous seminar, we will 'pipe' this functions together using the `%>%` operator from the `dplyr` package. This provides us with simpler, easier-to-read code. In this example, we do not need to re-specify the source or target data frames for each call of the `rename()` function.
+
+```{r}
+prize <- prize %>%
+  rename(name = Newspaper) %>%
+  rename(winFinal03 = Pulitzer.Prize.Winners.and.Finalists..1990.2003) %>%
+  rename(winFinal14 = Pulitzer.Prize.Winners.and.Finalists..2004.2014) %>%
+  rename(winFinalTot = Pulitzer.Prize.Winners.and.Finalists..1990.2014) %>%
+  rename(circ2004 = Daily.Circulation..2004) %>%
+  rename(circ2013 = Daily.Circulation..2013) %>%
+  rename(circChange = Change.in.Daily.Circulation..2004.2013)
+```
+
+### Removing the Commas in the Prize Data
+
+Both the circulation variables in the prize data set have commas included in them. These do not convert to numeric easily. To fix this, we can use the `mutate()` function to remove the commas before we use the variable:
+
+```{r}
+prize <- prize %>%
+  mutate(circ2004 = as.numeric(gsub(",", "", circ2004))) %>%
+  mutate(circ2013 = as.numeric(gsub(",", "", circ2013)))
+```
+
+
+### Simple Linear Regression - Example
+
+We fit regression models using the `lm()` function where the dependent variable is specified before the `~` and independent variables are specified after it. We also reference our data frame using the `data` option. Once a model is fit and saved to an object, we can summarize the results using the `summary()` function:
+
+```{r}
+prizeModel <- lm(circ2013 ~ winFinal03, data = prize)
+summary(prizeModel)
+```
+
+In this model, there is a statistically significant (p < 0.001) relationship between the number of Pulitzer Prizes won in 2003 and circulation afterward. Each additional prize is associated 17,457 additional subscribers ten years later. Past pulizter prize wins explain 24.5% of the variation in 2013 circulation. The statistically f-statistic (p < 0.001) tells us that this model gives us a better sense of the variation in 2013 circulation than only looking at the mean.
+
+We can save these results into a tidy, machine readable data frame for later reference:
+
+```{r}
+prizeModelTidy <- tidy(prizeModel)
+prizeModelTidy
+```
+
+#### Checking Assumptions - Residuals and Influential Observations
+
+To assess this model, there are a number of plots we can run to assess the model using the `plot()` function:
+1. Residuals vs Fitted (`which = 1:1`) - there should not a systematic relationship between the residuals and the fitted values. Systematic variation in this plot may indicate that there is not a linear relationship between your variables.
+2. Normal Q-Q (`which = 2:2`) - your residuals should be normally distributed - the residuals in this example are *not* normally distributed
+3. Scale-Location (`which = 3:3`) - your residuals should have a constant variance ([homoscedasticity](https://en.wikipedia.org/wiki/Homoscedasticity)), which would look like random points around a horizontal line. If there is a trend (narrowing of points on one side of the plot), that indicates [heteroscedasticity](https://en.wikipedia.org/wiki/Heteroscedasticity) and is a sign that there may be concerns with your regression model.
+4. Residuals vs Leverage (`which = 5:5`) - this plot shows observations that are not predicted well by the regression model (i.e. an outlier, identified by having high residuals), and observations that are outliers only for independent variables (i.e. leverage). Observations that have a disproportionate impact on the model in terms of their residuals and leverage are called *influential observations*, and are identified by the [Cook's D](https://en.wikipedia.org/wiki/Influential_observation) statistic.
+
+```{r}
+plot(prizeModel)
+```
+
+We don't typically use `ggplot2` for this because we rarely report diagnostic plots in publications or presentations. That said, it is possible to save the residuals and leverage values to plot using `ggplot2` with some extra time and effort.
+
+### Simple Linear Regression - Auto Data
+
+Fit a  model called `autoModel` using `fuelCost` as your dependent variable and `mpgCity` as your independent variable and display the model summary: 
+
+```{r}
+
+```
+
+Now save your results in a tidy, machine-readable data frame:
+
+```{r}
+
+```
+
+Finally, use the `plot()` function to produce diagnostic plots about your model:
+
+```{r}
+
+```
+
+### Multiple Linear Regression - Example
+
+#### Auto Data Model 2
+
+This example builds on the previous simple regression. Now we add two additional predictors, `mpgHwy` and `cylinders`. These predictors are separated by a `+` sign:
+
+```{r}
+autoModel2 <- lm(fuelCost ~ mpgCity + mpgHwy + cylinders, data = auto)
+summary(autoModel2)
+```
+
+Both city and highway miles per gallon are negatively associated with fuel costs - one mile per gallon increases in both are associated with corresponding decreases in average yearly spending on fuel of 18.28 dollars (p < 0.001) and 31.78 dollars (p < 0.001) respectively. A one cylinder increase to the engine adds 94.91 dollars (p < 0.001) to yearly fuel costs on average.
+
+The overall model explains 89% of the variation in fuel price. The statistically f-statistic (p < 0.001) tells us that this model gives us a better sense of the variation in fuel price than only looking at the mean.
+
+#### Checking Assumptions - Residuals and Influential Observations
+
+```{r}
+plot(autoModel2)
+```
+
+This plots reveal a number of concerns - there appears to be a non-linear relationship in the model that may need to be rectified with the addition of a quadratic. There are still signs of heteroskedastic errors, and there are still some influential observations.
+
+One key assumption for multiple regression is [multicollinearity](https://en.wikipedia.org/wiki/Multicollinearity). When predictors are correlated, this can negatively impact model fit. You can test for multicollinearity using `vif()` from the `car` package. (https://en.wikipedia.org/wiki/Variance_inflation_factor)
+
+
+#### Comparing Model Fit - AIC
+
+Since we have two models, we can compare both of them to see which is a better fit for our data. [AIC](https://en.wikipedia.org/wiki/Akaike_information_criterion) is one technique for doing that. AIC should decrease in size as model fit improves. We can use the `AIC()` function to access these estimates from our two models:
+
+```{r}
+AIC(autoModel)
+```
+
+```{r}
+AIC(autoModel2)
+```
+
+Since AIC decreases between model 1 and model 2, we have some evidence beyond adjusted r-squared that our model fit has improved.
+
+#### Comparing Model Fit - ANOVA
+
+We can test this further by calculating an ANOVA statistic using the chi-squared distribution that compares models 1 and 2:
+
+```{r}
+anova(autoModel, autoModel2, test="Chisq")
+```
+
+This comparison is statistically significant (p < 0.001), which provides us with further evidence that model 2 is an improvement over model 1 since their outcomes are  different in a significant way.
+
+#### Reformatting Variables
+
+Sometimes R imports our data but assigns it a different storage type than what we need. For instance, the data in the `id` variable in the auto data frame is really factor data (i.e. a categorical variable) but R is treating it as if it were continuous. We can reformat this using the `as.factor()` function:
+
+```{r}
+auto$id <- as.factor(auto$id)
+```
+
+Now try reformatting the auto data's variable `engId`, which likewise is imported as continuous variable but really isn't:
+
+```{r}
+
+```
+
+R comes with other functions like `as.character()`, `as.numeric`, and `as.integer()` for other types of common modifications.
+
+
+#### Mixed Effects Models
+
+The models we have built so far only included fixed effects. With mixed effects models, we can add one or more random effects, particularly useful if your data are not truly independent (multiple observations/data points per participant). Our sample datasets are not good examples for this since they do not violate the indpendence assumption (there is only one data point per car or newspaper). Nevertheless, we will use them to show an example of the code. We could ask, for instance, is there a random effect of car brand that goes beyond the factors of this car? For mixed effects models, we use the `lmer()` function in the `lme4` package. The syntax is similar to that of `lm()`; however, random effects are added with (1|x) and you must specify the family of functions used, in this case, `gaussian`, since we have a continuous dependent variable. For categorical dependent variables, we would specify `binomial`. 
+
+Note that there is a lot of discussion about whether p-values are reliable in mixed effects models (see discussion from authors of package here: https://stat.ethz.ch/pipermail/r-sig-mixed-models/2008q2/000904.html). The models we create report p-values because we have the package `lmerTest` installed, but the results should be interpreted with caution.
+
+Let's make a mixed effects model identical to `autoModel2` but adding brand as a random effect. 
+
+```{r}
+autoModel3 <- lmer(fuelCost~mpgCity+mpgHwy+cylinders+(1|brand),data=auto, corr=FALSE)
+summary(autoModel3)
+```
+
+Now we can compare our mixed effects model to the previous model we built in order to assess the importance of the random effect of brand. We'll do this by looking at the AIC of our mixed effects model. 
+
+```{r}
+AIC(autoModel3)
+```
+
+The AIC here (10569) is lower than that of autoModel2 (10866), showing an improvement when we add the random effect. 
+
